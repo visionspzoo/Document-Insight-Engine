@@ -16,6 +16,7 @@ import CustomSignInPage from "@/pages/custom-sign-in";
 import CustomSignUpPage from "@/pages/custom-sign-up";
 import AdminUsersPage from "@/pages/admin-users";
 import AdminRolesPage from "@/pages/admin-roles";
+import WizardPage from "@/pages/wizard";
 
 const queryClient = new QueryClient();
 
@@ -202,6 +203,7 @@ function AppRoutes() {
       <Route path="/prompts" component={() => <ProtectedRoute component={Prompts} />} />
       <Route path="/jobs" component={() => <ProtectedRoute component={Jobs} />} />
       <Route path="/jobs/:id" component={() => <ProtectedRoute component={JobDetail} />} />
+      <Route path="/wizard" component={() => <ProtectedRoute component={WizardPage} />} />
       <Route path="/admin/users" component={() => <ProtectedRoute component={AdminUsersPage} />} />
       <Route path="/admin/roles" component={() => <ProtectedRoute component={AdminRolesPage} />} />
       <Route component={NotFound} />

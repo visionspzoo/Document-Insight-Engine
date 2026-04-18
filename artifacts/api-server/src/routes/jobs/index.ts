@@ -285,4 +285,96 @@ router.post("/jobs/:id/process", async (req, res): Promise<void> => {
   res.end();
 });
 
+router.post("/jobs/:jobId/documents/:docId/reset", async (req, res): Promise<void> => {
+  const jobId = Number(req.params.jobId);
+  const docId = Number(req.params.docId);
+  if (!Number.isFinite(jobId) || !Number.isFinite(docId)) {
+    res.status(400).json({ error: "Nieprawidłowe ID." });
+    return;
+  }
+  const [doc] = await db
+    .select()
+    .from(documentsTable)
+    .where(and(eq(documentsTable.id, docId), eq(documentsTable.jobId, jobId)));
+  if (!doc) {
+    res.status(404).json({ error: "Dokument nie znaleziony." });
+    return;
+  }
+  await db.delete(resultsTable).where(and(eq(resultsTable.jobId, jobId), eq(resultsTable.documentId, docId)));
+  await db.update(documentsTable).set({ status: "pending" }).where(eq(documentsTable.id, docId));
+  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, jobId));
+  if (job && job.processedCount > 0) {
+    await db.update(jobsTable).set({ processedCount: Math.max(0, job.processedCount - 1) }).where(eq(jobsTable.id, jobId));
+  }
+  res.json({ ok: true });
+});
+
+router.post("/jobs/:id/analyze", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Nieprawidłowe ID." });
+    return;
+  }
+  const analysisPrompt = String((req.body as { analysisPrompt?: string }).analysisPrompt ?? "").trim();
+  if (!analysisPrompt) {
+    res.status(400).json({ error: "Brak prompta analizy." });
+    return;
+  }
+
+  const [job] = await db.select().from(jobsTable).where(eq(jobsTable.id, id));
+  if (!job) {
+    res.status(404).json({ error: "Zadanie nie znalezione." });
+    return;
+  }
+
+  if (job.promptId) {
+    await db.update(promptsTable).set({ analysisPrompt }).where(eq(promptsTable.id, job.promptId));
+  }
+
+  const targets = await db.select().from(resultsTable).where(eq(resultsTable.jobId, id));
+  if (targets.length === 0) {
+    res.status(400).json({ error: "Brak wyników do analizy." });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+  send({ type: "start", total: targets.length, jobId: id });
+
+  let processed = 0;
+  let failed = 0;
+
+  await batchProcessWithSSE(
+    targets,
+    async (result) => {
+      const message = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 8192,
+        messages: [
+          {
+            role: "user",
+            content: `${analysisPrompt}\n\nWyodrębnione dane:\n${result.extractedData ?? ""}`,
+          },
+        ],
+      });
+      const block = message.content[0];
+      const analysisResult = block.type === "text" ? block.text : "";
+      await db.update(resultsTable).set({ analysisResult }).where(eq(resultsTable.id, result.id));
+      processed++;
+      return analysisResult;
+    },
+    (event) => send({ type: "progress", ...event, processedCount: processed }),
+    { concurrency: 2, retries: 2 },
+  ).catch((err) => {
+    failed++;
+    logger.error({ err }, "Error during analysis batch");
+  });
+
+  send({ type: "done", processedCount: processed, failedCount: failed, status: failed > 0 ? "failed" : "completed" });
+  res.end();
+});
+
 export default router;
