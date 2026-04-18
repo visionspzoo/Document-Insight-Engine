@@ -3,13 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: DocSage API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: prompts
+    description: Prompt template operations
+  - name: jobs
+    description: Document processing job operations
+  - name: documents
+    description: Document operations
+  - name: results
+    description: Result operations
+  - name: exports
+    description: Export operations
+  - name: stats
+    description: Statistics and dashboard operations
 paths:
   /healthz:
     get:
@@ -24,6 +36,355 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /prompts:
+    get:
+      operationId: listPrompts
+      tags: [prompts]
+      summary: List all prompt templates
+      responses:
+        "200":
+          description: List of prompt templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Prompt"
+    post:
+      operationId: createPrompt
+      tags: [prompts]
+      summary: Create a new prompt template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePromptBody"
+      responses:
+        "201":
+          description: Created prompt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prompt"
+
+  /prompts/{id}:
+    get:
+      operationId: getPrompt
+      tags: [prompts]
+      summary: Get a prompt template by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Prompt template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prompt"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updatePrompt
+      tags: [prompts]
+      summary: Update a prompt template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePromptBody"
+      responses:
+        "200":
+          description: Updated prompt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prompt"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePrompt
+      tags: [prompts]
+      summary: Delete a prompt template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [jobs]
+      summary: List all processing jobs
+      responses:
+        "200":
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+    post:
+      operationId: createJob
+      tags: [jobs]
+      summary: Create a new processing job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobBody"
+      responses:
+        "201":
+          description: Created job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+
+  /jobs/{id}:
+    get:
+      operationId: getJob
+      tags: [jobs]
+      summary: Get a job with its documents and results
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Job with documents and results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobWithDetails"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteJob
+      tags: [jobs]
+      summary: Delete a job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs/{id}/process:
+    post:
+      operationId: processJob
+      tags: [jobs]
+      summary: Start processing a job (SSE stream for progress)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: SSE stream of processing progress
+          content:
+            text/event-stream: {}
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs/{id}/documents:
+    post:
+      operationId: uploadDocument
+      tags: [documents]
+      summary: Upload a document to a job (multipart/form-data, handled separately)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Uploaded document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs/{jobId}/documents/{docId}:
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      summary: Delete a document from a job
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: docId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs/{id}/results:
+    get:
+      operationId: listJobResults
+      tags: [results]
+      summary: List all results for a job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Result"
+
+  /jobs/{id}/export:
+    get:
+      operationId: exportJobResults
+      tags: [exports]
+      summary: Export job results in specified format
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [csv, json, xml]
+      responses:
+        "200":
+          description: Exported file
+          content:
+            application/octet-stream: {}
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /stats/dashboard:
+    get:
+      operationId: getDashboardStats
+      tags: [stats]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /stats/recent-jobs:
+    get:
+      operationId: getRecentJobs
+      tags: [stats]
+      summary: Get the 5 most recent jobs
+      responses:
+        "200":
+          description: Recent jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+
+  /prompt-templates/defaults:
+    get:
+      operationId: getDefaultPromptTemplates
+      tags: [prompts]
+      summary: Get built-in default prompt templates
+      responses:
+        "200":
+          description: Default prompt templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DefaultPromptTemplate"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +395,258 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Prompt:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        extractionPrompt:
+          type: string
+        analysisPrompt:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        isTemplate:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - extractionPrompt
+        - isTemplate
+        - createdAt
+        - updatedAt
+
+    CreatePromptBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        extractionPrompt:
+          type: string
+        analysisPrompt:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        isTemplate:
+          type: boolean
+      required:
+        - name
+        - extractionPrompt
+
+    UpdatePromptBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        extractionPrompt:
+          type: string
+        analysisPrompt:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        promptId:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        documentCount:
+          type: integer
+        processedCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - status
+        - documentCount
+        - processedCount
+        - createdAt
+        - updatedAt
+
+    CreateJobBody:
+      type: object
+      properties:
+        name:
+          type: string
+        promptId:
+          type: ["integer", "null"]
+      required:
+        - name
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        filename:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        extractedText:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - jobId
+        - filename
+        - mimeType
+        - sizeBytes
+        - status
+        - createdAt
+
+    Result:
+      type: object
+      properties:
+        id:
+          type: integer
+        jobId:
+          type: integer
+        documentId:
+          type: ["integer", "null"]
+        documentFilename:
+          type: ["string", "null"]
+        extractedData:
+          type: ["string", "null"]
+        analysisResult:
+          type: ["string", "null"]
+        rawResponse:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - jobId
+        - createdAt
+
+    JobWithDetails:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        promptId:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        documentCount:
+          type: integer
+        processedCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Document"
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/Result"
+        prompt:
+          oneOf:
+            - $ref: "#/components/schemas/Prompt"
+            - type: "null"
+      required:
+        - id
+        - name
+        - status
+        - documentCount
+        - processedCount
+        - createdAt
+        - updatedAt
+        - documents
+        - results
+
+    DashboardStats:
+      type: object
+      properties:
+        totalJobs:
+          type: integer
+        completedJobs:
+          type: integer
+        processingJobs:
+          type: integer
+        totalDocuments:
+          type: integer
+        totalResults:
+          type: integer
+        savedPrompts:
+          type: integer
+      required:
+        - totalJobs
+        - completedJobs
+        - processingJobs
+        - totalDocuments
+        - totalResults
+        - savedPrompts
+
+    DefaultPromptTemplate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        extractionPrompt:
+          type: string
+        analysisPrompt:
+          type: string
+        category:
+          type: string
+      required:
+        - name
+        - description
+        - extractionPrompt
+        - analysisPrompt
+        - category
