@@ -10,6 +10,7 @@ Full-stack app for law firms, accounting offices, enterprises. Users configure p
 
 ### Features
 - **Authentication**: Clerk (user accounts, Google OAuth, manage users via Auth pane)
+- **Authorization**: Roles & permissions (DB tables `roles`, `user_roles`). Permission keys: `users.manage`, `roles.manage`, `jobs.manage`, `prompts.manage`, `exports.access`. Seeded roles: Administrator (system, all perms), Operator. Admin endpoints under `/api/admin/*` (users, roles, permissions, me). Admin user `admin@docsage.pl` is auto-assigned Administrator role via `pnpm --filter @workspace/scripts exec tsx ./src/seed-roles.ts`. Sidebar links for `/admin/users` and `/admin/roles` are gated on permissions via `useMe()` hook.
 - **Prompts / Templates**: CRUD prompt library + default Polish templates
 - **Jobs**: Bulk document upload, Claude AI extraction/analysis, SSE progress streaming
 - **Export**: CSV/JSON/XML results

@@ -1,7 +1,8 @@
 import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
-import { Briefcase, LayoutDashboard, Database, FileText, LogOut, User, ChevronDown } from "lucide-react";
+import { Briefcase, LayoutDashboard, Database, FileText, LogOut, User, ChevronDown, Users, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMe, hasPermission } from "@/lib/admin-api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,12 +16,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const { data: me } = useMe();
 
   const navItems = [
-    { href: "/dashboard", label: "Pulpit", icon: LayoutDashboard },
-    { href: "/jobs", label: "Zadania", icon: Briefcase },
-    { href: "/prompts", label: "Szablony", icon: Database },
-  ];
+    { href: "/dashboard", label: "Pulpit", icon: LayoutDashboard, show: true },
+    { href: "/jobs", label: "Zadania", icon: Briefcase, show: true },
+    { href: "/prompts", label: "Szablony", icon: Database, show: true },
+    { href: "/admin/users", label: "Użytkownicy", icon: Users, show: hasPermission(me, "users.manage") },
+    { href: "/admin/roles", label: "Role", icon: ShieldCheck, show: hasPermission(me, "roles.manage") },
+  ].filter((i) => i.show);
 
   const initials = user
     ? ((user.firstName?.[0] ?? "") + (user.lastName?.[0] ?? "")).toUpperCase() || user.emailAddresses[0]?.emailAddress[0].toUpperCase()
