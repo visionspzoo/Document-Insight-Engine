@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSignIn } from "@clerk/react";
+import { useClerk } from "@clerk/react";
 import { Link, useLocation } from "wouter";
 import { FileText, Eye, EyeOff, Loader2 } from "lucide-react";
 
@@ -7,7 +7,7 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 const apiBase = import.meta.env.VITE_API_URL ?? "";
 
 export default function CustomSignUpPage() {
-  const { signIn, setActive, isLoaded } = useSignIn();
+  const clerk = useClerk();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,7 +17,10 @@ export default function CustomSignUpPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded || !signIn) return;
+    if (!clerk.client) {
+      setError("Inicjalizacja uwierzytelniania w toku, spróbuj ponownie za chwilę.");
+      return;
+    }
 
     setError(null);
     setLoading(true);
@@ -44,13 +47,13 @@ export default function CustomSignUpPage() {
         throw new Error(loginData.error ?? "Logowanie po rejestracji nie powiodło się.");
       }
 
-      const result = await signIn.create({
+      const result = await clerk.client!.signIn.create({
         strategy: "ticket",
         ticket: loginData.ticket,
       });
 
       if (result.status === "complete" && result.createdSessionId) {
-        await setActive({ session: result.createdSessionId });
+        await clerk.setActive({ session: result.createdSessionId });
         setLocation("/dashboard");
       } else {
         setError("Konto zostało utworzone. Zaloguj się teraz.");
