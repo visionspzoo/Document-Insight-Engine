@@ -21,7 +21,6 @@ import {
   Play,
   FileText,
   Trash2,
-  Download,
   CheckCircle2,
   AlertCircle,
   Clock,
@@ -32,10 +31,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 const STATUS_CONFIG = {
-  pending: { color: "text-blue-500", bg: "bg-blue-500/10", label: "Pending" },
-  processing: { color: "text-amber-500", bg: "bg-amber-500/10", label: "Processing" },
-  completed: { color: "text-emerald-500", bg: "bg-emerald-500/10", label: "Completed" },
-  failed: { color: "text-red-500", bg: "bg-red-500/10", label: "Failed" },
+  pending: { color: "text-blue-500", bg: "bg-blue-500/10", label: "Oczekuje" },
+  processing: { color: "text-amber-500", bg: "bg-amber-500/10", label: "Przetwarzanie" },
+  completed: { color: "text-emerald-500", bg: "bg-emerald-500/10", label: "Ukończone" },
+  failed: { color: "text-red-500", bg: "bg-red-500/10", label: "Błąd" },
 };
 
 export default function JobDetail() {
@@ -78,29 +77,32 @@ export default function JobDetail() {
           successCount++;
         } else {
           const err = await res.json();
-          toast({ title: "Upload failed", description: err.error || file.name, variant: "destructive" });
+          toast({ title: "Błąd przesyłania", description: err.error || file.name, variant: "destructive" });
         }
       } catch {
-        toast({ title: "Upload error", description: `Failed to upload ${file.name}`, variant: "destructive" });
+        toast({ title: "Błąd przesyłania", description: `Nie udało się przesłać ${file.name}`, variant: "destructive" });
       }
     }
     setUploading(false);
     if (successCount > 0) {
-      toast({ title: "Uploaded", description: `${successCount} file(s) uploaded successfully` });
+      toast({ title: "Przesłano", description: `${successCount} plik(i) przesłane pomyślnie` });
       queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(jobId) });
     }
   };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.files.length) {
-      handleFileUpload(e.dataTransfer.files);
-    }
-  }, [jobId]);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer.files.length) {
+        handleFileUpload(e.dataTransfer.files);
+      }
+    },
+    [jobId]
+  );
 
   const handleProcess = async () => {
     if (!job?.documents?.length) {
-      toast({ title: "No documents", description: "Upload documents before processing", variant: "destructive" });
+      toast({ title: "Brak dokumentów", description: "Prześlij dokumenty przed przetwarzaniem", variant: "destructive" });
       return;
     }
     setProcessing(true);
@@ -112,7 +114,7 @@ export default function JobDetail() {
       const res = await fetch(`/api/jobs/${jobId}/process`, { method: "POST" });
       if (!res.ok) {
         const err = await res.json();
-        toast({ title: "Error", description: err.error || "Processing failed", variant: "destructive" });
+        toast({ title: "Błąd", description: err.error || "Przetwarzanie nie powiodło się", variant: "destructive" });
         setProcessing(false);
         return;
       }
@@ -121,6 +123,7 @@ export default function JobDetail() {
       if (!reader) return;
 
       let buffer = "";
+      let currentTotal = job.documentCount;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -133,24 +136,25 @@ export default function JobDetail() {
               const data = JSON.parse(line.slice(6));
               if (data.type === "start") {
                 setTotalCount(data.total);
+                currentTotal = data.total;
               } else if (data.type === "progress") {
                 const count = data.processedCount ?? processedCount + 1;
                 setProcessedCount(count);
-                setProgress(Math.round((count / (data.total || totalCount)) * 100));
+                setProgress(Math.round((count / (data.total || currentTotal)) * 100));
               } else if (data.type === "done") {
                 setProgress(100);
                 toast({
-                  title: data.status === "completed" ? "Processing complete" : "Processing done with errors",
-                  description: `${data.processedCount} document(s) processed`,
+                  title: data.status === "completed" ? "Przetwarzanie zakończone" : "Przetwarzanie z błędami",
+                  description: `${data.processedCount} dokument(y) przetworzone`,
                   variant: data.status === "completed" ? "default" : "destructive",
                 });
               }
-            } catch { /* ignore parse errors */ }
+            } catch { /* ignore */ }
           }
         }
       }
     } catch {
-      toast({ title: "Error", description: "Processing connection failed", variant: "destructive" });
+      toast({ title: "Błąd", description: "Utracono połączenie podczas przetwarzania", variant: "destructive" });
     } finally {
       setProcessing(false);
       queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(jobId) });
@@ -159,13 +163,17 @@ export default function JobDetail() {
   };
 
   const handleDeleteDocument = (docId: number) => {
-    deleteDocument.mutate({ jobId, docId }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(jobId) });
-        toast({ title: "Removed", description: "Document removed from job" });
-      },
-      onError: () => toast({ title: "Error", description: "Failed to remove document", variant: "destructive" }),
-    });
+    deleteDocument.mutate(
+      { jobId, docId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetJobQueryKey(jobId) });
+          toast({ title: "Usunięto", description: "Dokument został usunięty z zadania" });
+        },
+        onError: () =>
+          toast({ title: "Błąd", description: "Nie udało się usunąć dokumentu", variant: "destructive" }),
+      }
+    );
   };
 
   const handleExport = (format: "csv" | "json" | "xml") => {
@@ -186,10 +194,10 @@ export default function JobDetail() {
     return (
       <div className="text-center py-16 text-muted-foreground">
         <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-40" />
-        <p className="font-medium">Job not found</p>
+        <p className="font-medium">Nie znaleziono zadania</p>
         <Link href="/jobs">
           <Button variant="outline" className="mt-4 gap-2">
-            <ArrowLeft className="h-4 w-4" /> Back to Jobs
+            <ArrowLeft className="h-4 w-4" /> Wróć do zadań
           </Button>
         </Link>
       </div>
@@ -197,7 +205,8 @@ export default function JobDetail() {
   }
 
   const status = STATUS_CONFIG[job.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
-  const canProcess = job.status !== "processing" && (job.documents?.some((d) => d.status === "pending") ?? false);
+  const canProcess =
+    job.status !== "processing" && (job.documents?.some((d) => d.status === "pending") ?? false);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -213,13 +222,27 @@ export default function JobDetail() {
             <Badge className={`${status.bg} ${status.color} border-0`}>{status.label}</Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {job.documentCount} document(s) · Created {new Date(job.createdAt).toLocaleDateString('pl-PL')}
-            {job.prompt && <span className="ml-2">· Prompt: <span className="font-medium">{job.prompt.name}</span></span>}
+            {job.documentCount} dokument(y) · Utworzono{" "}
+            {new Date(job.createdAt).toLocaleDateString("pl-PL")}
+            {job.prompt && (
+              <span className="ml-2">
+                · Szablon: <span className="font-medium">{job.prompt.name}</span>
+              </span>
+            )}
           </p>
         </div>
-        <Button onClick={handleProcess} disabled={!canProcess || processing} className="gap-2" data-testid="button-process">
-          {processing ? <Activity className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          {processing ? "Processing..." : "Process Documents"}
+        <Button
+          onClick={handleProcess}
+          disabled={!canProcess || processing}
+          className="gap-2"
+          data-testid="button-process"
+        >
+          {processing ? (
+            <Activity className="h-4 w-4 animate-spin" />
+          ) : (
+            <Play className="h-4 w-4" />
+          )}
+          {processing ? "Przetwarzanie..." : "Przetwórz dokumenty"}
         </Button>
       </div>
 
@@ -229,9 +252,11 @@ export default function JobDetail() {
             <div className="flex items-center justify-between text-sm">
               <span className="text-amber-500 font-medium flex items-center gap-2">
                 <Activity className="h-4 w-4 animate-spin" />
-                Processing documents with Claude AI...
+                Przetwarzanie dokumentów przez Claude AI...
               </span>
-              <span className="font-mono text-muted-foreground">{processedCount}/{totalCount}</span>
+              <span className="font-mono text-muted-foreground">
+                {processedCount}/{totalCount}
+              </span>
             </div>
             <Progress value={progress} className="h-1.5" />
           </CardContent>
@@ -241,10 +266,16 @@ export default function JobDetail() {
       <Tabs defaultValue="documents">
         <TabsList>
           <TabsTrigger value="documents" data-testid="tab-documents">
-            Documents <Badge variant="secondary" className="ml-2 text-xs">{job.documentCount}</Badge>
+            Dokumenty{" "}
+            <Badge variant="secondary" className="ml-2 text-xs">
+              {job.documentCount}
+            </Badge>
           </TabsTrigger>
           <TabsTrigger value="results" data-testid="tab-results">
-            Results <Badge variant="secondary" className="ml-2 text-xs">{results?.length ?? 0}</Badge>
+            Wyniki{" "}
+            <Badge variant="secondary" className="ml-2 text-xs">
+              {results?.length ?? 0}
+            </Badge>
           </TabsTrigger>
         </TabsList>
 
@@ -257,9 +288,11 @@ export default function JobDetail() {
             data-testid="dropzone-upload"
           >
             <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-            <p className="font-medium text-foreground">Drop files here or click to upload</p>
-            <p className="text-sm text-muted-foreground mt-1">PDF, PNG, JPG, TIFF, TXT — up to 50MB each</p>
-            {uploading && <p className="text-sm text-primary mt-2 animate-pulse">Uploading...</p>}
+            <p className="font-medium text-foreground">Upuść pliki tutaj lub kliknij, aby przesłać</p>
+            <p className="text-sm text-muted-foreground mt-1">PDF, PNG, JPG, TIFF, TXT — do 50 MB każdy</p>
+            {uploading && (
+              <p className="text-sm text-primary mt-2 animate-pulse">Przesyłanie...</p>
+            )}
           </div>
           <input
             ref={fileInputRef}
@@ -274,17 +307,32 @@ export default function JobDetail() {
           {job.documents && job.documents.length > 0 ? (
             <div className="space-y-2">
               {job.documents.map((doc) => {
-                const docStatus = STATUS_CONFIG[doc.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
+                const docStatus =
+                  STATUS_CONFIG[doc.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
                 return (
-                  <Card key={doc.id} className="bg-card/50 border-border/50" data-testid={`card-document-${doc.id}`}>
+                  <Card
+                    key={doc.id}
+                    className="bg-card/50 border-border/50"
+                    data-testid={`card-document-${doc.id}`}
+                  >
                     <CardContent className="p-3 flex items-center gap-3">
                       <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm truncate">{doc.filename}</p>
-                        <p className="text-xs text-muted-foreground">{(doc.sizeBytes / 1024).toFixed(1)} KB · {doc.mimeType}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {(doc.sizeBytes / 1024).toFixed(1)} KB · {doc.mimeType}
+                        </p>
                       </div>
-                      <Badge className={`${docStatus.bg} ${docStatus.color} border-0 text-xs flex-shrink-0`}>{docStatus.label}</Badge>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive flex-shrink-0" onClick={() => handleDeleteDocument(doc.id)} data-testid={`button-delete-doc-${doc.id}`}>
+                      <Badge className={`${docStatus.bg} ${docStatus.color} border-0 text-xs flex-shrink-0`}>
+                        {docStatus.label}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive flex-shrink-0"
+                        onClick={() => handleDeleteDocument(doc.id)}
+                        data-testid={`button-delete-doc-${doc.id}`}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </CardContent>
@@ -295,7 +343,7 @@ export default function JobDetail() {
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="h-10 w-10 mx-auto mb-3 opacity-20" />
-              <p className="text-sm">No documents uploaded yet</p>
+              <p className="text-sm">Brak przesłanych dokumentów</p>
             </div>
           )}
         </TabsContent>
@@ -303,12 +351,18 @@ export default function JobDetail() {
         <TabsContent value="results" className="space-y-4 mt-4">
           {results && results.length > 0 && (
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">{results.length} result(s)</p>
+              <p className="text-sm text-muted-foreground">{results.length} wynik(i)</p>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Export:</span>
-                <Button variant="outline" size="sm" onClick={() => handleExport("csv")} data-testid="button-export-csv">CSV</Button>
-                <Button variant="outline" size="sm" onClick={() => handleExport("json")} data-testid="button-export-json">JSON</Button>
-                <Button variant="outline" size="sm" onClick={() => handleExport("xml")} data-testid="button-export-xml">XML</Button>
+                <span className="text-sm text-muted-foreground">Eksport:</span>
+                <Button variant="outline" size="sm" onClick={() => handleExport("csv")} data-testid="button-export-csv">
+                  CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleExport("json")} data-testid="button-export-json">
+                  JSON
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleExport("xml")} data-testid="button-export-xml">
+                  XML
+                </Button>
               </div>
             </div>
           )}
@@ -326,29 +380,43 @@ export default function JobDetail() {
           ) : results && results.length > 0 ? (
             <div className="space-y-3">
               {results.map((result) => (
-                <Card key={result.id} className="bg-card/50 border-border/50" data-testid={`card-result-${result.id}`}>
+                <Card
+                  key={result.id}
+                  className="bg-card/50 border-border/50"
+                  data-testid={`card-result-${result.id}`}
+                >
                   <CardHeader className="p-4 pb-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                        <span className="font-medium text-sm">{result.documentFilename ?? "Unknown document"}</span>
+                        <span className="font-medium text-sm">
+                          {result.documentFilename ?? "Nieznany dokument"}
+                        </span>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="gap-1 text-xs"
-                        onClick={() => setExpandedResult(expandedResult === result.id ? null : result.id)}
+                        onClick={() =>
+                          setExpandedResult(expandedResult === result.id ? null : result.id)
+                        }
                         data-testid={`button-expand-result-${result.id}`}
                       >
-                        {expandedResult === result.id ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        {expandedResult === result.id ? "Collapse" : "Expand"}
+                        {expandedResult === result.id ? (
+                          <ChevronUp className="h-3 w-3" />
+                        ) : (
+                          <ChevronDown className="h-3 w-3" />
+                        )}
+                        {expandedResult === result.id ? "Zwiń" : "Rozwiń"}
                       </Button>
                     </div>
                   </CardHeader>
                   <CardContent className="p-4">
                     {result.extractedData && (
                       <div className="space-y-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Extracted Data</p>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Wyodrębnione dane
+                        </p>
                         <ScrollArea className={expandedResult === result.id ? "h-64" : "h-24"}>
                           <pre className="text-xs font-mono text-foreground/80 whitespace-pre-wrap bg-background/50 border border-border/50 rounded-md p-3">
                             {result.extractedData}
@@ -358,7 +426,9 @@ export default function JobDetail() {
                     )}
                     {result.analysisResult && expandedResult === result.id && (
                       <div className="space-y-2 mt-4">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Analysis</p>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Analiza
+                        </p>
                         <ScrollArea className="h-48">
                           <pre className="text-xs font-mono text-foreground/80 whitespace-pre-wrap bg-background/50 border border-border/50 rounded-md p-3">
                             {result.analysisResult}
@@ -373,8 +443,8 @@ export default function JobDetail() {
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <Clock className="h-12 w-12 mx-auto mb-4 opacity-20" />
-              <p className="font-medium">No results yet</p>
-              <p className="text-sm mt-1">Upload documents and click "Process" to start extraction.</p>
+              <p className="font-medium">Brak wyników</p>
+              <p className="text-sm mt-1">Prześlij dokumenty i kliknij "Przetwórz", aby rozpocząć ekstrakcję.</p>
             </div>
           )}
         </TabsContent>

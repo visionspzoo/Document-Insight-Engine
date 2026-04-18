@@ -20,10 +20,10 @@ import { Plus, Briefcase, FileText, Trash2, ArrowRight, CheckCircle2, AlertCircl
 import { useToast } from "@/hooks/use-toast";
 
 const STATUS_CONFIG = {
-  pending: { color: "bg-blue-500", label: "Pending", icon: Clock },
-  processing: { color: "bg-amber-500", label: "Processing", icon: Activity, pulse: true },
-  completed: { color: "bg-emerald-500", label: "Completed", icon: CheckCircle2 },
-  failed: { color: "bg-red-500", label: "Failed", icon: AlertCircle },
+  pending: { color: "text-blue-500", label: "Oczekuje", icon: Clock },
+  processing: { color: "text-amber-500", label: "Przetwarzanie", icon: Activity },
+  completed: { color: "text-emerald-500", label: "Ukończone", icon: CheckCircle2 },
+  failed: { color: "text-red-500", label: "Błąd", icon: AlertCircle },
 };
 
 export default function Jobs() {
@@ -43,48 +43,56 @@ export default function Jobs() {
 
   const handleCreate = () => {
     if (!jobName) {
-      toast({ title: "Error", description: "Job name is required", variant: "destructive" });
+      toast({ title: "Błąd", description: "Nazwa zadania jest wymagana", variant: "destructive" });
       return;
     }
-    createJob.mutate({
-      data: {
-        name: jobName,
-        promptId: promptId && promptId !== "none" ? parseInt(promptId, 10) : null,
+    createJob.mutate(
+      {
+        data: {
+          name: jobName,
+          promptId: promptId && promptId !== "none" ? parseInt(promptId, 10) : null,
+        },
       },
-    }, {
-      onSuccess: (job) => {
-        toast({ title: "Created", description: `Job "${job.name}" created` });
-        queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
-        setDialogOpen(false);
-        setJobName("");
-        setPromptId("");
-        setLocation(`/jobs/${job.id}`);
-      },
-      onError: () => toast({ title: "Error", description: "Failed to create job", variant: "destructive" }),
-    });
+      {
+        onSuccess: (job) => {
+          toast({ title: "Utworzono", description: `Zadanie "${job.name}" zostało utworzone` });
+          queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+          setDialogOpen(false);
+          setJobName("");
+          setPromptId("");
+          setLocation(`/jobs/${job.id}`);
+        },
+        onError: () =>
+          toast({ title: "Błąd", description: "Nie udało się utworzyć zadania", variant: "destructive" }),
+      }
+    );
   };
 
   const handleDelete = (id: number) => {
-    deleteJob.mutate({ id }, {
-      onSuccess: () => {
-        toast({ title: "Deleted", description: "Job removed" });
-        queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
-        setDeleteConfirmId(null);
-      },
-      onError: () => toast({ title: "Error", description: "Failed to delete job", variant: "destructive" }),
-    });
+    deleteJob.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          toast({ title: "Usunięto", description: "Zadanie zostało usunięte" });
+          queryClient.invalidateQueries({ queryKey: getListJobsQueryKey() });
+          setDeleteConfirmId(null);
+        },
+        onError: () =>
+          toast({ title: "Błąd", description: "Nie udało się usunąć zadania", variant: "destructive" }),
+      }
+    );
   };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Processing Jobs</h1>
-          <p className="text-muted-foreground mt-1">Manage document extraction and analysis tasks.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Zadania</h1>
+          <p className="text-muted-foreground mt-1">Zarządzaj zadaniami ekstrakcji i analizy dokumentów.</p>
         </div>
         <Button onClick={() => setDialogOpen(true)} className="gap-2" data-testid="button-new-job">
           <Plus className="h-4 w-4" />
-          New Job
+          Nowe zadanie
         </Button>
       </div>
 
@@ -111,31 +119,54 @@ export default function Jobs() {
                 data-testid={`card-job-${job.id}`}
               >
                 <CardContent className="p-4 flex items-center gap-4">
-                  <div className={`flex-shrink-0 p-2 rounded-full bg-background border border-border`}>
-                    <StatusIcon className={`h-5 w-5 ${job.status === 'processing' ? 'animate-spin text-amber-500' : job.status === 'completed' ? 'text-emerald-500' : job.status === 'failed' ? 'text-red-500' : 'text-blue-500'}`} />
+                  <div className="flex-shrink-0 p-2 rounded-full bg-background border border-border">
+                    <StatusIcon
+                      className={`h-5 w-5 ${
+                        job.status === "processing"
+                          ? "animate-spin text-amber-500"
+                          : job.status === "completed"
+                          ? "text-emerald-500"
+                          : job.status === "failed"
+                          ? "text-red-500"
+                          : "text-blue-500"
+                      }`}
+                    />
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-foreground truncate">{job.name}</h3>
-                      <Badge variant={job.status === 'completed' ? 'default' : 'secondary'} className="text-xs flex-shrink-0">
+                      <Badge variant="secondary" className="text-xs flex-shrink-0">
                         {status.label}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <FileText className="h-3.5 w-3.5" />
-                        {job.documentCount} doc{job.documentCount !== 1 ? 's' : ''}
+                        {job.documentCount} dok.
                       </span>
                       {job.processedCount > 0 && (
-                        <span className="font-mono text-xs">{job.processedCount}/{job.documentCount} processed</span>
+                        <span className="font-mono text-xs">
+                          {job.processedCount}/{job.documentCount} przetworzone
+                        </span>
                       )}
-                      <span className="font-mono text-xs">{new Date(job.createdAt).toLocaleDateString('pl-PL')}</span>
+                      <span className="font-mono text-xs">
+                        {new Date(job.createdAt).toLocaleDateString("pl-PL")}
+                      </span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.preventDefault(); setDeleteConfirmId(job.id); }} data-testid={`button-delete-job-${job.id}`}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setDeleteConfirmId(job.id);
+                      }}
+                      data-testid={`button-delete-job-${job.id}`}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                     <Link href={`/jobs/${job.id}`}>
@@ -152,11 +183,11 @@ export default function Jobs() {
       ) : (
         <div className="text-center py-20 text-muted-foreground">
           <Briefcase className="h-16 w-16 mx-auto mb-4 opacity-20" />
-          <p className="font-semibold text-lg">No jobs yet</p>
-          <p className="text-sm mt-1">Create your first processing job to get started.</p>
+          <p className="font-semibold text-lg">Brak zadań</p>
+          <p className="text-sm mt-1">Utwórz pierwsze zadanie, aby zacząć.</p>
           <Button onClick={() => setDialogOpen(true)} className="mt-4 gap-2">
             <Plus className="h-4 w-4" />
-            Create First Job
+            Utwórz pierwsze zadanie
           </Button>
         </div>
       )}
@@ -164,32 +195,43 @@ export default function Jobs() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New Job</DialogTitle>
+            <DialogTitle>Nowe zadanie</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="job-name">Job Name *</Label>
-              <Input id="job-name" value={jobName} onChange={(e) => setJobName(e.target.value)} placeholder="e.g. Q1 2024 Contracts" data-testid="input-new-job-name" onKeyDown={(e) => e.key === "Enter" && handleCreate()} />
+              <Label htmlFor="job-name">Nazwa zadania *</Label>
+              <Input
+                id="job-name"
+                value={jobName}
+                onChange={(e) => setJobName(e.target.value)}
+                placeholder="np. Umowy Q1 2024"
+                data-testid="input-new-job-name"
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="prompt-select">Extraction Prompt <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Label htmlFor="prompt-select">
+                Szablon ekstrakcji <span className="text-muted-foreground text-xs">(opcjonalnie)</span>
+              </Label>
               <Select value={promptId} onValueChange={setPromptId}>
                 <SelectTrigger data-testid="select-job-prompt">
-                  <SelectValue placeholder="Select a prompt" />
+                  <SelectValue placeholder="Wybierz szablon" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None — Default Analysis</SelectItem>
+                  <SelectItem value="none">Brak — analiza domyślna</SelectItem>
                   {prompts?.map((p) => (
-                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      {p.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Anuluj</Button>
             <Button onClick={handleCreate} disabled={createJob.isPending} data-testid="button-create-job-confirm">
-              {createJob.isPending ? "Creating..." : "Create Job"}
+              {createJob.isPending ? "Tworzenie..." : "Utwórz zadanie"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -198,13 +240,20 @@ export default function Jobs() {
       <Dialog open={deleteConfirmId !== null} onOpenChange={() => setDeleteConfirmId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Job</DialogTitle>
+            <DialogTitle>Usuń zadanie</DialogTitle>
           </DialogHeader>
-          <p className="text-muted-foreground">This will permanently delete the job and all its documents and results.</p>
+          <p className="text-muted-foreground">
+            Spowoduje to trwałe usunięcie zadania wraz ze wszystkimi dokumentami i wynikami.
+          </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)} disabled={deleteJob.isPending} data-testid="button-confirm-delete-job">
-              {deleteJob.isPending ? "Deleting..." : "Delete Job"}
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Anuluj</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
+              disabled={deleteJob.isPending}
+              data-testid="button-confirm-delete-job"
+            >
+              {deleteJob.isPending ? "Usuwanie..." : "Usuń zadanie"}
             </Button>
           </DialogFooter>
         </DialogContent>

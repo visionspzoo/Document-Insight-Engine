@@ -41,7 +41,9 @@ export default function Prompts() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: prompts, isLoading } = useListPrompts({ query: { queryKey: getListPromptsQueryKey() } });
+  const { data: prompts, isLoading } = useListPrompts({
+    query: { queryKey: getListPromptsQueryKey() },
+  });
   const { data: templates, isLoading: templatesLoading } = useGetDefaultPromptTemplates({
     query: { queryKey: getGetDefaultPromptTemplatesQueryKey() },
   });
@@ -61,7 +63,14 @@ export default function Prompts() {
     setDialogOpen(true);
   };
 
-  const openEdit = (p: { id: number; name: string; description?: string | null; extractionPrompt: string; analysisPrompt?: string | null; category?: string | null }) => {
+  const openEdit = (p: {
+    id: number;
+    name: string;
+    description?: string | null;
+    extractionPrompt: string;
+    analysisPrompt?: string | null;
+    category?: string | null;
+  }) => {
     setEditingId(p.id);
     setForm({
       name: p.name,
@@ -75,7 +84,11 @@ export default function Prompts() {
 
   const handleSave = () => {
     if (!form.name || !form.extractionPrompt) {
-      toast({ title: "Error", description: "Name and extraction prompt are required", variant: "destructive" });
+      toast({
+        title: "Błąd",
+        description: "Nazwa i szablon ekstrakcji są wymagane",
+        variant: "destructive",
+      });
       return;
     }
     const data = {
@@ -86,54 +99,76 @@ export default function Prompts() {
       category: form.category || null,
     };
     if (editingId) {
-      updatePrompt.mutate({ id: editingId, data }, {
-        onSuccess: () => {
-          toast({ title: "Saved", description: "Prompt updated successfully" });
-          queryClient.invalidateQueries({ queryKey: getListPromptsQueryKey() });
-          setDialogOpen(false);
-        },
-        onError: () => toast({ title: "Error", description: "Failed to update prompt", variant: "destructive" }),
-      });
+      updatePrompt.mutate(
+        { id: editingId, data },
+        {
+          onSuccess: () => {
+            toast({ title: "Zapisano", description: "Szablon zaktualizowany" });
+            queryClient.invalidateQueries({ queryKey: getListPromptsQueryKey() });
+            setDialogOpen(false);
+          },
+          onError: () =>
+            toast({ title: "Błąd", description: "Nie udało się zaktualizować szablonu", variant: "destructive" }),
+        }
+      );
     } else {
-      createPrompt.mutate({ data }, {
-        onSuccess: () => {
-          toast({ title: "Created", description: "Prompt saved to library" });
-          queryClient.invalidateQueries({ queryKey: getListPromptsQueryKey() });
-          setDialogOpen(false);
-        },
-        onError: () => toast({ title: "Error", description: "Failed to create prompt", variant: "destructive" }),
-      });
+      createPrompt.mutate(
+        { data },
+        {
+          onSuccess: () => {
+            toast({ title: "Utworzono", description: "Szablon zapisany w bibliotece" });
+            queryClient.invalidateQueries({ queryKey: getListPromptsQueryKey() });
+            setDialogOpen(false);
+          },
+          onError: () =>
+            toast({ title: "Błąd", description: "Nie udało się utworzyć szablonu", variant: "destructive" }),
+        }
+      );
     }
   };
 
   const handleDelete = (id: number) => {
-    deletePrompt.mutate({ id }, {
-      onSuccess: () => {
-        toast({ title: "Deleted", description: "Prompt removed from library" });
-        queryClient.invalidateQueries({ queryKey: getListPromptsQueryKey() });
-        setDeleteConfirmId(null);
-      },
-      onError: () => toast({ title: "Error", description: "Failed to delete prompt", variant: "destructive" }),
-    });
+    deletePrompt.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          toast({ title: "Usunięto", description: "Szablon usunięty z biblioteki" });
+          queryClient.invalidateQueries({ queryKey: getListPromptsQueryKey() });
+          setDeleteConfirmId(null);
+        },
+        onError: () =>
+          toast({ title: "Błąd", description: "Nie udało się usunąć szablonu", variant: "destructive" }),
+      }
+    );
   };
 
-  const importTemplate = (t: { name: string; description: string; extractionPrompt: string; analysisPrompt: string; category: string }) => {
-    createPrompt.mutate({
-      data: {
-        name: t.name,
-        description: t.description,
-        extractionPrompt: t.extractionPrompt,
-        analysisPrompt: t.analysisPrompt,
-        category: t.category,
-        isTemplate: true,
+  const importTemplate = (t: {
+    name: string;
+    description: string;
+    extractionPrompt: string;
+    analysisPrompt: string;
+    category: string;
+  }) => {
+    createPrompt.mutate(
+      {
+        data: {
+          name: t.name,
+          description: t.description,
+          extractionPrompt: t.extractionPrompt,
+          analysisPrompt: t.analysisPrompt,
+          category: t.category,
+          isTemplate: true,
+        },
       },
-    }, {
-      onSuccess: () => {
-        toast({ title: "Imported", description: `"${t.name}" added to your library` });
-        queryClient.invalidateQueries({ queryKey: getListPromptsQueryKey() });
-      },
-      onError: () => toast({ title: "Error", description: "Failed to import template", variant: "destructive" }),
-    });
+      {
+        onSuccess: () => {
+          toast({ title: "Zaimportowano", description: `"${t.name}" dodany do Twojej biblioteki` });
+          queryClient.invalidateQueries({ queryKey: getListPromptsQueryKey() });
+        },
+        onError: () =>
+          toast({ title: "Błąd", description: "Nie udało się zaimportować szablonu", variant: "destructive" }),
+      }
+    );
   };
 
   const isPending = createPrompt.isPending || updatePrompt.isPending;
@@ -142,19 +177,21 @@ export default function Prompts() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Prompt Library</h1>
-          <p className="text-muted-foreground mt-1">Define extraction and analysis instructions for your documents.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Biblioteka szablonów</h1>
+          <p className="text-muted-foreground mt-1">
+            Definiuj instrukcje ekstrakcji i analizy dla swoich dokumentów.
+          </p>
         </div>
         <Button onClick={openCreate} className="gap-2" data-testid="button-new-prompt">
           <Plus className="h-4 w-4" />
-          New Prompt
+          Nowy szablon
         </Button>
       </div>
 
       <Tabs defaultValue="library">
         <TabsList>
-          <TabsTrigger value="library" data-testid="tab-library">My Library</TabsTrigger>
-          <TabsTrigger value="templates" data-testid="tab-templates">Default Templates</TabsTrigger>
+          <TabsTrigger value="library" data-testid="tab-library">Moja biblioteka</TabsTrigger>
+          <TabsTrigger value="templates" data-testid="tab-templates">Szablony domyślne</TabsTrigger>
         </TabsList>
 
         <TabsContent value="library" className="mt-4">
@@ -171,29 +208,50 @@ export default function Prompts() {
           ) : prompts && prompts.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {prompts.map((p) => (
-                <Card key={p.id} className="bg-card/50 border-border/50 hover:bg-card hover:border-border transition-all" data-testid={`card-prompt-${p.id}`}>
+                <Card
+                  key={p.id}
+                  className="bg-card/50 border-border/50 hover:bg-card hover:border-border transition-all"
+                  data-testid={`card-prompt-${p.id}`}
+                >
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
                         <CardTitle className="text-base truncate">{p.name}</CardTitle>
                         {p.category && (
-                          <Badge variant="secondary" className="mt-1 text-xs">{p.category}</Badge>
+                          <Badge variant="secondary" className="mt-1 text-xs">
+                            {p.category}
+                          </Badge>
                         )}
                       </div>
                       <div className="flex gap-1 flex-shrink-0">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(p)} data-testid={`button-edit-prompt-${p.id}`}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEdit(p)}
+                          data-testid={`button-edit-prompt-${p.id}`}
+                        >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirmId(p.id)} data-testid={`button-delete-prompt-${p.id}`}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeleteConfirmId(p.id)}
+                          data-testid={`button-delete-prompt-${p.id}`}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    {p.description && <p className="text-sm text-muted-foreground mb-2">{p.description}</p>}
+                    {p.description && (
+                      <p className="text-sm text-muted-foreground mb-2">{p.description}</p>
+                    )}
                     <div className="rounded-md bg-background/60 border border-border/40 p-3">
-                      <p className="text-xs font-mono text-muted-foreground line-clamp-3">{p.extractionPrompt}</p>
+                      <p className="text-xs font-mono text-muted-foreground line-clamp-3">
+                        {p.extractionPrompt}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -202,8 +260,8 @@ export default function Prompts() {
           ) : (
             <div className="text-center py-16 text-muted-foreground">
               <Database className="h-12 w-12 mx-auto mb-4 opacity-20" />
-              <p className="font-medium">No prompts yet</p>
-              <p className="text-sm mt-1">Create your first prompt or import from templates.</p>
+              <p className="font-medium">Brak szablonów</p>
+              <p className="text-sm mt-1">Utwórz pierwszy szablon lub zaimportuj z gotowych wzorców.</p>
             </div>
           )}
         </TabsContent>
@@ -222,23 +280,39 @@ export default function Prompts() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {templates?.map((t, i) => (
-                <Card key={i} className="bg-card/50 border-border/50 hover:bg-card hover:border-border transition-all" data-testid={`card-template-${i}`}>
+                <Card
+                  key={i}
+                  className="bg-card/50 border-border/50 hover:bg-card hover:border-border transition-all"
+                  data-testid={`card-template-${i}`}
+                >
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
                         <CardTitle className="text-base">{t.name}</CardTitle>
-                        {t.category && <Badge variant="secondary" className="mt-1 text-xs">{t.category}</Badge>}
+                        {t.category && (
+                          <Badge variant="secondary" className="mt-1 text-xs">
+                            {t.category}
+                          </Badge>
+                        )}
                       </div>
-                      <Button variant="outline" size="sm" className="gap-1 flex-shrink-0" onClick={() => importTemplate(t)} data-testid={`button-import-template-${i}`}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 flex-shrink-0"
+                        onClick={() => importTemplate(t)}
+                        data-testid={`button-import-template-${i}`}
+                      >
                         <Download className="h-3 w-3" />
-                        Import
+                        Importuj
                       </Button>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-0">
                     <p className="text-sm text-muted-foreground mb-2">{t.description}</p>
                     <div className="rounded-md bg-background/60 border border-border/40 p-3">
-                      <p className="text-xs font-mono text-muted-foreground line-clamp-3">{t.extractionPrompt}</p>
+                      <p className="text-xs font-mono text-muted-foreground line-clamp-3">
+                        {t.extractionPrompt}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
@@ -251,50 +325,72 @@ export default function Prompts() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Edit Prompt" : "New Prompt"}</DialogTitle>
+            <DialogTitle>{editingId ? "Edytuj szablon" : "Nowy szablon"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name *</Label>
-                <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Contract Extraction" data-testid="input-prompt-name" />
+                <Label htmlFor="name">Nazwa *</Label>
+                <Input
+                  id="name"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="np. Ekstrakcja umów"
+                  data-testid="input-prompt-name"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Input id="category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Legal, Finance" data-testid="input-prompt-category" />
+                <Label htmlFor="category">Kategoria</Label>
+                <Input
+                  id="category"
+                  value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  placeholder="np. Prawne, Finanse"
+                  data-testid="input-prompt-category"
+                />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Input id="description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Brief description of what this prompt does" data-testid="input-prompt-description" />
+              <Label htmlFor="description">Opis</Label>
+              <Input
+                id="description"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Krótki opis działania szablonu"
+                data-testid="input-prompt-description"
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="extraction">Extraction Prompt *</Label>
+              <Label htmlFor="extraction">Instrukcja ekstrakcji *</Label>
               <Textarea
                 id="extraction"
                 value={form.extractionPrompt}
                 onChange={(e) => setForm({ ...form, extractionPrompt: e.target.value })}
-                placeholder="Instructions for what data to extract from the document..."
+                placeholder="Instrukcje dotyczące danych do wyodrębnienia z dokumentu..."
                 className="min-h-28 font-mono text-sm resize-y"
                 data-testid="input-prompt-extraction"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="analysis">Analysis Prompt <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Label htmlFor="analysis">
+                Instrukcja analizy <span className="text-muted-foreground text-xs">(opcjonalnie)</span>
+              </Label>
               <Textarea
                 id="analysis"
                 value={form.analysisPrompt}
                 onChange={(e) => setForm({ ...form, analysisPrompt: e.target.value })}
-                placeholder="Instructions for how to analyze the extracted data..."
+                placeholder="Instrukcje dotyczące analizy wyodrębnionych danych..."
                 className="min-h-24 font-mono text-sm resize-y"
                 data-testid="input-prompt-analysis"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} data-testid="button-cancel-prompt">Cancel</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} data-testid="button-cancel-prompt">
+              Anuluj
+            </Button>
             <Button onClick={handleSave} disabled={isPending} data-testid="button-save-prompt">
-              {isPending ? "Saving..." : "Save Prompt"}
+              {isPending ? "Zapisywanie..." : "Zapisz szablon"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -303,13 +399,22 @@ export default function Prompts() {
       <Dialog open={deleteConfirmId !== null} onOpenChange={() => setDeleteConfirmId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Prompt</DialogTitle>
+            <DialogTitle>Usuń szablon</DialogTitle>
           </DialogHeader>
-          <p className="text-muted-foreground">This will permanently delete this prompt. This action cannot be undone.</p>
+          <p className="text-muted-foreground">
+            Spowoduje to trwałe usunięcie tego szablonu. Tej operacji nie można cofnąć.
+          </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)} disabled={deletePrompt.isPending} data-testid="button-confirm-delete">
-              {deletePrompt.isPending ? "Deleting..." : "Delete"}
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
+              Anuluj
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
+              disabled={deletePrompt.isPending}
+              data-testid="button-confirm-delete"
+            >
+              {deletePrompt.isPending ? "Usuwanie..." : "Usuń"}
             </Button>
           </DialogFooter>
         </DialogContent>
