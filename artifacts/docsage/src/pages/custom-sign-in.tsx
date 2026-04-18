@@ -22,10 +22,20 @@ export default function CustomSignInPage() {
     setLoading(true);
 
     try {
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailAddress: email, password }),
+      });
+      const loginData = (await loginRes.json()) as { ticket?: string; error?: string };
+      if (!loginRes.ok || !loginData.ticket) {
+        setError(loginData.error ?? "Nieprawidłowy email lub hasło.");
+        return;
+      }
+
       const result = await signIn.create({
-        identifier: email,
-        strategy: "password",
-        password,
+        strategy: "ticket",
+        ticket: loginData.ticket,
       });
 
       if (result.status === "complete" && result.createdSessionId) {

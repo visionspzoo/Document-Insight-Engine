@@ -34,10 +34,19 @@ export default function CustomSignUpPage() {
         throw new Error(body.error ?? "Rejestracja nie powiodła się.");
       }
 
+      const loginRes = await fetch(`${apiBase}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailAddress: email, password }),
+      });
+      const loginData = (await loginRes.json()) as { ticket?: string; error?: string };
+      if (!loginRes.ok || !loginData.ticket) {
+        throw new Error(loginData.error ?? "Logowanie po rejestracji nie powiodło się.");
+      }
+
       const result = await signIn.create({
-        identifier: email,
-        strategy: "password",
-        password,
+        strategy: "ticket",
+        ticket: loginData.ticket,
       });
 
       if (result.status === "complete" && result.createdSessionId) {
