@@ -71,8 +71,8 @@ export default function CustomSignUpPage() {
         >
           <div className="px-8 pt-8 pb-6 flex flex-col gap-5">
             <div className="flex flex-col items-center gap-3 text-center">
-              <div className="flex items-center gap-2 text-primary font-bold text-xl tracking-tight">
-                <FileText className="h-6 w-6" />
+              <div className="flex items-center gap-2 text-primary font-bold text-3xl tracking-tight">
+                <FileText className="h-9 w-9" />
                 <span>
                   Doc<span style={{ color: "hsl(210,20%,98%)" }}>Sage</span>
                 </span>
