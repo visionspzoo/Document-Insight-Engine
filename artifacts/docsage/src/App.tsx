@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk, useUser } from "@clerk/react";
+import { ClerkProvider, Show, useClerk } from "@clerk/react";
 import { plPL } from "@clerk/localizations";
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +12,8 @@ import Jobs from "@/pages/jobs";
 import JobDetail from "@/pages/job-detail";
 import Landing from "@/pages/landing";
 import Layout from "@/components/layout";
+import CustomSignInPage from "@/pages/custom-sign-in";
+import CustomSignUpPage from "@/pages/custom-sign-up";
 
 const queryClient = new QueryClient();
 
@@ -110,37 +112,6 @@ const clerkLocalization = {
   formFieldInputPlaceholder__emailAddress: "Wprowadź adres email",
 };
 
-function SignInPage() {
-  // To update login providers, app branding, or OAuth settings use the Auth
-  // pane in the workspace toolbar. More information can be found in the Replit docs.
-  return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md">
-        <SignIn
-          routing="path"
-          path={`${basePath}/sign-in`}
-          signUpUrl={`${basePath}/sign-up`}
-        />
-      </div>
-    </div>
-  );
-}
-
-function SignUpPage() {
-  // To update login providers, app branding, or OAuth settings use the Auth
-  // pane in the workspace toolbar. More information can be found in the Replit docs.
-  return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md">
-        <SignUp
-          routing="path"
-          path={`${basePath}/sign-up`}
-          signInUrl={`${basePath}/sign-in`}
-        />
-      </div>
-    </div>
-  );
-}
 
 function HomeRedirect() {
   return (
@@ -223,8 +194,8 @@ function AppRoutes() {
   return (
     <Switch>
       <Route path="/" component={HomeRedirect} />
-      <Route path="/sign-in/*?" component={SignInPage} />
-      <Route path="/sign-up/*?" component={SignUpPage} />
+      <Route path="/sign-in/*?" component={CustomSignInPage} />
+      <Route path="/sign-up/*?" component={CustomSignUpPage} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/prompts" component={() => <ProtectedRoute component={Prompts} />} />
       <Route path="/jobs" component={() => <ProtectedRoute component={Jobs} />} />
