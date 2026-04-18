@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useUser } from "@clerk/react";
+import { plPL } from "@clerk/localizations";
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -84,31 +85,27 @@ const clerkAppearance = {
 };
 
 const clerkLocalization = {
+  ...plPL,
   signIn: {
+    ...plPL.signIn,
     start: {
+      ...((plPL.signIn as any)?.start ?? {}),
       title: "Witaj ponownie",
       subtitle: "Zaloguj się, aby kontynuować",
-      actionText: "Nie masz konta?",
-      actionLink: "Zarejestruj się",
     },
   },
   signUp: {
+    ...plPL.signUp,
     start: {
+      ...((plPL.signUp as any)?.start ?? {}),
       title: "Utwórz konto",
       subtitle: "Dołącz do DocSage już dziś",
-      actionText: "Masz już konto?",
-      actionLink: "Zaloguj się",
     },
   },
-  userButton: {
-    action__signOut: "Wyloguj się",
-    action__manageAccount: "Zarządzaj kontem",
-  },
-  formFieldLabel__emailAddress: "Adres e-mail",
-  formFieldLabel__password: "Hasło",
-  formButtonPrimary: "Kontynuuj",
-  dividerText: "lub",
-  footerActionLink__useAnotherMethod: "Użyj innej metody",
+  formFieldInputPlaceholder__password: "Wprowadź swoje hasło",
+  formFieldInputPlaceholder__newPassword: "Utwórz hasło",
+  formFieldInputPlaceholder__confirmPassword: "Potwierdź hasło",
+  formFieldInputPlaceholder__emailAddress: "Wprowadź adres email",
 };
 
 function SignInPage() {
