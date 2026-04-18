@@ -60,6 +60,8 @@ const clerkAppearance = {
     cardBox: `shadow-2xl border border-[${border}] rounded-2xl w-full overflow-hidden`,
     card: "!shadow-none !border-0 !bg-transparent !rounded-none",
     footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
+    badge: "!hidden",
+    tagInputContainer: "!hidden",
     headerTitle: { color: textMain, fontSize: "1.25rem", fontWeight: "700" },
     headerSubtitle: { color: textSecondary, fontSize: "0.875rem" },
     socialButtonsBlockButtonText: { color: textMain },
@@ -168,6 +170,36 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   );
 }
 
+function HideDevBadge() {
+  useEffect(() => {
+    const hide = () => {
+      // Target Clerk's development mode badge by various methods
+      document.querySelectorAll<HTMLElement>(
+        '[data-localization-key="badge__devMode"], .cl-badge, [class*="devBadge"], [class*="dev-badge"]'
+      ).forEach(el => { el.style.display = "none"; });
+
+      // Also find by link href pointing to Clerk docs about dev mode
+      document.querySelectorAll<HTMLElement>('a[href*="clerk.com/docs/deployments"]').forEach(el => {
+        const parent = el.closest('[class*="cl-"]') ?? el.parentElement;
+        if (parent) (parent as HTMLElement).style.display = "none";
+      });
+
+      // Fallback: find elements with "Development mode" text
+      document.querySelectorAll<HTMLElement>('*').forEach(el => {
+        if (el.children.length === 0 && el.textContent?.trim() === 'Development mode') {
+          const wrapper = el.closest('[class*="cl-"]') ?? el.parentElement;
+          if (wrapper) (wrapper as HTMLElement).style.display = "none";
+        }
+      });
+    };
+    hide();
+    const obs = new MutationObserver(hide);
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, []);
+  return null;
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const qc = useQueryClient();
@@ -216,6 +248,7 @@ function ClerkProviderWithRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          <HideDevBadge />
           <ClerkQueryClientCacheInvalidator />
           <AppRoutes />
           <Toaster />
