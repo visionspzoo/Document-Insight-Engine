@@ -16,20 +16,29 @@ import AdminUsersPage from "@/pages/admin-users";
 import AdminRolesPage from "@/pages/admin-roles";
 import WizardPage from "@/pages/wizard";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { Spinner } from "@/components/ui/spinner";
 
 const queryClient = new QueryClient();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+function FullPageLoader() {
+  return (
+    <div className="min-h-[100dvh] flex items-center justify-center bg-background">
+      <Spinner className="size-8 text-primary" />
+    </div>
+  );
+}
+
 function HomeRedirect() {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <FullPageLoader />;
   if (user) return <Redirect to="/dashboard" />;
   return <Landing />;
 }
 
 function ProtectedRoute({ component: Component }: { component: ComponentType }) {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <FullPageLoader />;
   if (!user) return <Redirect to="/sign-in" />;
   return (
     <Layout>
