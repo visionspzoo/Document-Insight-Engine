@@ -1,6 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { eq } from "drizzle-orm";
-import { getAuth } from "@clerk/express";
 import {
   db,
   rolesTable,
@@ -9,56 +8,36 @@ import {
   PERMISSION_LABELS,
   type PermissionKey,
 } from "@workspace/db";
+import { requireAuth, supabaseAdmin, type AuthedRequest } from "../../middlewares/supabaseAuthMiddleware";
 
 const router: ReturnType<typeof Router> = Router();
 
-const CLERK_API = "https://api.clerk.com/v1";
-
-async function clerkFetch(path: string, init: RequestInit = {}) {
-  const secretKey = process.env.CLERK_SECRET_KEY;
-  if (!secretKey) throw new Error("CLERK_SECRET_KEY missing");
-  return fetch(`${CLERK_API}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
-}
-
-async function getUserPermissions(clerkUserId: string): Promise<{ role: typeof rolesTable.$inferSelect | null; permissions: PermissionKey[] }> {
+async function getUserPermissions(userId: string): Promise<{ role: typeof rolesTable.$inferSelect | null; permissions: PermissionKey[] }> {
   const rows = await db
     .select()
     .from(userRolesTable)
     .leftJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id))
-    .where(eq(userRolesTable.clerkUserId, clerkUserId))
+    .where(eq(userRolesTable.userId, userId))
     .limit(1);
   const row = rows[0];
   if (!row || !row.roles) return { role: null, permissions: [] };
   return { role: row.roles, permissions: row.roles.permissions };
 }
 
-function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const { userId } = getAuth(req);
-  if (!userId) return res.status(401).json({ error: "Brak autoryzacji." });
-  (req as Request & { clerkUserId: string }).clerkUserId = userId;
-  next();
-}
-
 function requirePermission(perm: PermissionKey) {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    const userId = (req as Request & { clerkUserId: string }).clerkUserId;
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const userId = (req as AuthedRequest).supabaseUserId;
     const { permissions } = await getUserPermissions(userId);
     if (!permissions.includes(perm)) {
-      return res.status(403).json({ error: "Brak uprawnień." });
+      res.status(403).json({ error: "Brak uprawnień." });
+      return;
     }
     next();
   };
 }
 
-router.get("/admin/me", requireAuth, async (req, res) => {
-  const userId = (req as Request & { clerkUserId: string }).clerkUserId;
+router.get("/admin/me", requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const userId = (req as AuthedRequest).supabaseUserId;
   const { role, permissions } = await getUserPermissions(userId);
   res.json({
     userId,
@@ -67,20 +46,23 @@ router.get("/admin/me", requireAuth, async (req, res) => {
   });
 });
 
-router.get("/admin/permissions", requireAuth, (_req, res) => {
+router.get("/admin/permissions", requireAuth, (_req: Request, res: Response): void => {
   res.json(
     PERMISSION_KEYS.map((key) => ({ key, label: PERMISSION_LABELS[key] })),
   );
 });
 
-router.get("/admin/roles", requireAuth, requirePermission("roles.manage"), async (_req, res) => {
+router.get("/admin/roles", requireAuth, requirePermission("roles.manage"), async (_req: Request, res: Response): Promise<void> => {
   const roles = await db.select().from(rolesTable).orderBy(rolesTable.id);
   res.json(roles);
 });
 
-router.post("/admin/roles", requireAuth, requirePermission("roles.manage"), async (req, res) => {
+router.post("/admin/roles", requireAuth, requirePermission("roles.manage"), async (req: Request, res: Response): Promise<void> => {
   const { name, description, permissions } = req.body as { name?: string; description?: string; permissions?: PermissionKey[] };
-  if (!name) return res.status(400).json({ error: "Nazwa roli jest wymagana." });
+  if (!name) {
+    res.status(400).json({ error: "Nazwa roli jest wymagana." });
+    return;
+  }
   const filtered = (permissions ?? []).filter((p): p is PermissionKey => (PERMISSION_KEYS as readonly string[]).includes(p));
   try {
     const [created] = await db
@@ -93,16 +75,23 @@ router.post("/admin/roles", requireAuth, requirePermission("roles.manage"), asyn
   }
 });
 
-router.patch("/admin/roles/:id", requireAuth, requirePermission("roles.manage"), async (req, res) => {
+router.patch("/admin/roles/:id", requireAuth, requirePermission("roles.manage"), async (req: Request, res: Response): Promise<void> => {
   const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "Nieprawidłowe ID." });
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Nieprawidłowe ID." });
+    return;
+  }
   const [existing] = await db.select().from(rolesTable).where(eq(rolesTable.id, id)).limit(1);
-  if (!existing) return res.status(404).json({ error: "Rola nie znaleziona." });
+  if (!existing) {
+    res.status(404).json({ error: "Rola nie znaleziona." });
+    return;
+  }
   const { name, description, permissions } = req.body as { name?: string; description?: string; permissions?: PermissionKey[] };
   if (existing.isSystem && (name !== undefined || permissions !== undefined)) {
-    return res.status(400).json({ error: "Nie można zmieniać nazwy ani uprawnień roli systemowej." });
+    res.status(400).json({ error: "Nie można zmieniać nazwy ani uprawnień roli systemowej." });
+    return;
   }
-  const update: Record<string, unknown> = {};
+  const update: Partial<{ name: string; description: string | null; permissions: PermissionKey[] }> = {};
   if (name !== undefined) update.name = name;
   if (description !== undefined) update.description = description;
   if (permissions !== undefined) {
@@ -112,46 +101,54 @@ router.patch("/admin/roles/:id", requireAuth, requirePermission("roles.manage"),
   res.json(updated);
 });
 
-router.delete("/admin/roles/:id", requireAuth, requirePermission("roles.manage"), async (req, res) => {
+router.delete("/admin/roles/:id", requireAuth, requirePermission("roles.manage"), async (req: Request, res: Response): Promise<void> => {
   const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "Nieprawidłowe ID." });
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Nieprawidłowe ID." });
+    return;
+  }
   const [role] = await db.select().from(rolesTable).where(eq(rolesTable.id, id)).limit(1);
-  if (!role) return res.status(404).json({ error: "Rola nie znaleziona." });
-  if (role.isSystem) return res.status(400).json({ error: "Nie można usunąć roli systemowej." });
+  if (!role) {
+    res.status(404).json({ error: "Rola nie znaleziona." });
+    return;
+  }
+  if (role.isSystem) {
+    res.status(400).json({ error: "Nie można usunąć roli systemowej." });
+    return;
+  }
   const usage = await db.select().from(userRolesTable).where(eq(userRolesTable.roleId, id)).limit(1);
-  if (usage.length > 0) return res.status(400).json({ error: "Rola jest przypisana do użytkowników." });
+  if (usage.length > 0) {
+    res.status(400).json({ error: "Rola jest przypisana do użytkowników." });
+    return;
+  }
   await db.delete(rolesTable).where(eq(rolesTable.id, id));
   res.status(204).end();
 });
 
-router.get("/admin/users", requireAuth, requirePermission("users.manage"), async (_req, res) => {
-  const r = await clerkFetch("/users?limit=200&order_by=-created_at");
-  if (!r.ok) return res.status(502).json({ error: "Nie udało się pobrać użytkowników." });
-  const clerkUsers = (await r.json()) as Array<{
-    id: string;
-    email_addresses: Array<{ email_address: string }>;
-    first_name: string | null;
-    last_name: string | null;
-    created_at: number;
-  }>;
+router.get("/admin/users", requireAuth, requirePermission("users.manage"), async (_req: Request, res: Response): Promise<void> => {
+  const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 });
+  if (listError) {
+    res.status(502).json({ error: "Nie udało się pobrać użytkowników." });
+    return;
+  }
   const assignments = await db
     .select()
     .from(userRolesTable)
     .leftJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id));
-  const map = new Map(assignments.map((a) => [a.user_roles.clerkUserId, a.roles]));
+  const map = new Map(assignments.map((a) => [a.user_roles.userId, a.roles]));
   res.json(
-    clerkUsers.map((u) => ({
+    listData.users.map((u) => ({
       id: u.id,
-      email: u.email_addresses[0]?.email_address ?? "",
-      firstName: u.first_name,
-      lastName: u.last_name,
-      createdAt: u.created_at,
+      email: u.email ?? "",
+      firstName: (u.user_metadata as Record<string, string> | undefined)?.first_name ?? null,
+      lastName: (u.user_metadata as Record<string, string> | undefined)?.last_name ?? null,
+      createdAt: new Date(u.created_at).getTime(),
       role: map.get(u.id) ? { id: map.get(u.id)!.id, name: map.get(u.id)!.name } : null,
     })),
   );
 });
 
-router.post("/admin/users", requireAuth, requirePermission("users.manage"), async (req, res) => {
+router.post("/admin/users", requireAuth, requirePermission("users.manage"), async (req: Request, res: Response): Promise<void> => {
   const { email, password, firstName, lastName, roleId } = req.body as {
     email?: string;
     password?: string;
@@ -159,37 +156,44 @@ router.post("/admin/users", requireAuth, requirePermission("users.manage"), asyn
     lastName?: string;
     roleId?: number;
   };
-  if (!email || !password) return res.status(400).json({ error: "Email i hasło są wymagane." });
+  if (!email || !password) {
+    res.status(400).json({ error: "Email i hasło są wymagane." });
+    return;
+  }
   if (roleId !== undefined && roleId !== null) {
     const [exists] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId)).limit(1);
-    if (!exists) return res.status(400).json({ error: "Wybrana rola nie istnieje." });
+    if (!exists) {
+      res.status(400).json({ error: "Wybrana rola nie istnieje." });
+      return;
+    }
   }
-  const r = await clerkFetch("/users", {
-    method: "POST",
-    body: JSON.stringify({
-      email_address: [email],
-      password,
-      first_name: firstName ?? undefined,
-      last_name: lastName ?? undefined,
-    }),
+  const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: {
+      ...(firstName ? { first_name: firstName } : {}),
+      ...(lastName ? { last_name: lastName } : {}),
+    },
   });
-  const data = (await r.json()) as { id?: string; errors?: Array<{ long_message?: string; message?: string }> };
-  if (!r.ok || !data.id) {
-    return res.status(r.status).json({ error: data.errors?.[0]?.long_message ?? "Nie udało się utworzyć użytkownika." });
+  if (createError || !createData.user) {
+    res.status(400).json({ error: createError?.message ?? "Nie udało się utworzyć użytkownika." });
+    return;
   }
   if (roleId) {
     try {
-      await db.insert(userRolesTable).values({ clerkUserId: data.id, roleId }).onConflictDoNothing();
-    } catch (err) {
-      await clerkFetch(`/users/${data.id}`, { method: "DELETE" });
-      return res.status(400).json({ error: "Nie udało się przypisać roli — operacja wycofana." });
+      await db.insert(userRolesTable).values({ userId: createData.user.id, roleId }).onConflictDoNothing();
+    } catch {
+      await supabaseAdmin.auth.admin.deleteUser(createData.user.id);
+      res.status(400).json({ error: "Nie udało się przypisać roli — operacja wycofana." });
+      return;
     }
   }
-  res.status(201).json({ id: data.id });
+  res.status(201).json({ id: createData.user.id });
 });
 
-router.patch("/admin/users/:id", requireAuth, requirePermission("users.manage"), async (req, res) => {
-  const id = req.params.id;
+router.patch("/admin/users/:id", requireAuth, requirePermission("users.manage"), async (req: Request, res: Response): Promise<void> => {
+  const id = String(req.params.id);
   const { firstName, lastName, password, roleId } = req.body as {
     firstName?: string;
     lastName?: string;
@@ -197,36 +201,42 @@ router.patch("/admin/users/:id", requireAuth, requirePermission("users.manage"),
     roleId?: number | null;
   };
   if (firstName !== undefined || lastName !== undefined || password !== undefined) {
-    const body: Record<string, unknown> = {};
-    if (firstName !== undefined) body.first_name = firstName;
-    if (lastName !== undefined) body.last_name = lastName;
-    if (password !== undefined && password) body.password = password;
-    const r = await clerkFetch(`/users/${id}`, { method: "PATCH", body: JSON.stringify(body) });
-    if (!r.ok) {
-      const data = (await r.json()) as { errors?: Array<{ long_message?: string }> };
-      return res.status(r.status).json({ error: data.errors?.[0]?.long_message ?? "Aktualizacja nie powiodła się." });
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+      ...(password ? { password } : {}),
+      user_metadata: {
+        ...(firstName !== undefined ? { first_name: firstName } : {}),
+        ...(lastName !== undefined ? { last_name: lastName } : {}),
+      },
+    });
+    if (updateError) {
+      res.status(400).json({ error: updateError.message ?? "Aktualizacja nie powiodła się." });
+      return;
     }
   }
   if (roleId !== undefined) {
     if (roleId !== null) {
       const [exists] = await db.select().from(rolesTable).where(eq(rolesTable.id, roleId)).limit(1);
-      if (!exists) return res.status(400).json({ error: "Wybrana rola nie istnieje." });
+      if (!exists) {
+        res.status(400).json({ error: "Wybrana rola nie istnieje." });
+        return;
+      }
     }
-    await db.delete(userRolesTable).where(eq(userRolesTable.clerkUserId, id));
+    await db.delete(userRolesTable).where(eq(userRolesTable.userId, id));
     if (roleId !== null) {
-      await db.insert(userRolesTable).values({ clerkUserId: id, roleId });
+      await db.insert(userRolesTable).values({ userId: id, roleId });
     }
   }
   res.json({ ok: true });
 });
 
-router.delete("/admin/users/:id", requireAuth, requirePermission("users.manage"), async (req, res) => {
-  const id = req.params.id;
-  const r = await clerkFetch(`/users/${id}`, { method: "DELETE" });
-  if (!r.ok && r.status !== 404) {
-    return res.status(r.status).json({ error: "Nie udało się usunąć użytkownika." });
+router.delete("/admin/users/:id", requireAuth, requirePermission("users.manage"), async (req: Request, res: Response): Promise<void> => {
+  const id = String(req.params.id);
+  const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(id);
+  if (deleteError) {
+    res.status(400).json({ error: "Nie udało się usunąć użytkownika." });
+    return;
   }
-  await db.delete(userRolesTable).where(eq(userRolesTable.clerkUserId, id));
+  await db.delete(userRolesTable).where(eq(userRolesTable.userId, id));
   res.status(204).end();
 });
 

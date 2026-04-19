@@ -32,13 +32,13 @@ export const userRolesTable = pgTable(
   "user_roles",
   {
     id: serial("id").primaryKey(),
-    clerkUserId: text("clerk_user_id").notNull(),
+    userId: text("user_id").notNull(),
     roleId: integer("role_id")
       .notNull()
       .references(() => rolesTable.id, { onDelete: "restrict" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("user_roles_clerk_user_id_unique").on(t.clerkUserId)],
+  (t) => [uniqueIndex("user_roles_user_id_unique").on(t.userId)],
 );
 
 export type Role = typeof rolesTable.$inferSelect;

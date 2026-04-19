@@ -1,12 +1,11 @@
-import { useState } from "react";
-import { useClerk } from "@clerk/react";
+import { useState, type FormEvent } from "react";
 import { Link, useLocation } from "wouter";
-import { FileText, Eye, EyeOff, Loader2 } from "lucide-react";
+import { FileText, Eye, EyeOff, Loader as Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export default function CustomSignInPage() {
-  const clerk = useClerk();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,46 +13,27 @@ export default function CustomSignInPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!clerk.client) {
-      setError("Inicjalizacja uwierzytelniania w toku, spróbuj ponownie za chwilę.");
-      return;
-    }
-
     setError(null);
     setLoading(true);
 
     try {
-      const loginRes = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailAddress: email, password }),
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      const loginData = (await loginRes.json()) as { ticket?: string; error?: string };
-      if (!loginRes.ok || !loginData.ticket) {
-        setError(loginData.error ?? "Nieprawidłowy email lub hasło.");
+
+      if (signInError) {
+        setError(signInError.message === "Invalid login credentials"
+          ? "Nieprawidłowy email lub hasło."
+          : signInError.message);
         return;
       }
 
-      const result = await clerk.client!.signIn.create({
-        strategy: "ticket",
-        ticket: loginData.ticket,
-      });
-
-      if (result.status === "complete" && result.createdSessionId) {
-        await clerk.setActive({ session: result.createdSessionId });
-        setLocation("/dashboard");
-      } else {
-        setError("Logowanie nie powiodło się. Spróbuj ponownie.");
-      }
-    } catch (err: unknown) {
-      const clerkErr = err as { errors?: Array<{ longMessage?: string; message?: string }> };
-      const msg =
-        clerkErr?.errors?.[0]?.longMessage ??
-        clerkErr?.errors?.[0]?.message ??
-        "Nieprawidłowy email lub hasło.";
-      setError(msg);
+      setLocation("/dashboard");
+    } catch {
+      setError("Nieprawidłowy email lub hasło.");
     } finally {
       setLoading(false);
     }
@@ -108,7 +88,6 @@ export default function CustomSignInPage() {
                     background: "hsl(220,30%,8%)",
                     border: "1px solid hsl(220,20%,16%)",
                     color: "hsl(210,20%,98%)",
-                    focusRingColor: "hsl(210,100%,55%)",
                   }}
                 />
               </div>

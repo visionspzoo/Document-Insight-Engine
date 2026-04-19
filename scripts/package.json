@@ -12,6 +12,7 @@
     "tsx": "catalog:"
   },
   "dependencies": {
+    "@supabase/supabase-js": "catalog:",
     "@workspace/db": "workspace:*",
     "drizzle-orm": "catalog:"
   }

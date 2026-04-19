@@ -1,13 +1,11 @@
-import { useState } from "react";
-import { useClerk } from "@clerk/react";
+import { useState, type FormEvent } from "react";
 import { Link, useLocation } from "wouter";
-import { FileText, Eye, EyeOff, Loader2 } from "lucide-react";
+import { FileText, Eye, EyeOff, Loader as Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
-const apiBase = import.meta.env.VITE_API_URL ?? "";
 
 export default function CustomSignUpPage() {
-  const clerk = useClerk();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,56 +13,36 @@ export default function CustomSignUpPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!clerk.client) {
-      setError("Inicjalizacja uwierzytelniania w toku, spróbuj ponownie za chwilę.");
-      return;
-    }
-
     setError(null);
     setLoading(true);
 
     try {
-      const regRes = await fetch(`${apiBase}/api/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailAddress: email, password }),
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
       });
 
-      if (!regRes.ok) {
-        const body = await regRes.json() as { error?: string };
-        throw new Error(body.error ?? "Rejestracja nie powiodła się.");
+      if (signUpError) {
+        setError(signUpError.message);
+        return;
       }
 
-      const loginRes = await fetch(`${apiBase}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailAddress: email, password }),
-      });
-      const loginData = (await loginRes.json()) as { ticket?: string; error?: string };
-      if (!loginRes.ok || !loginData.ticket) {
-        throw new Error(loginData.error ?? "Logowanie po rejestracji nie powiodło się.");
-      }
-
-      const result = await clerk.client!.signIn.create({
-        strategy: "ticket",
-        ticket: loginData.ticket,
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      if (result.status === "complete" && result.createdSessionId) {
-        await clerk.setActive({ session: result.createdSessionId });
-        setLocation("/dashboard");
-      } else {
+      if (signInError) {
         setError("Konto zostało utworzone. Zaloguj się teraz.");
         setLocation(`${basePath}/sign-in`);
+        return;
       }
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Rejestracja nie powiodła się. Spróbuj ponownie.";
-      setError(msg);
+
+      setLocation("/dashboard");
+    } catch {
+      setError("Rejestracja nie powiodła się. Spróbuj ponownie.");
     } finally {
       setLoading(false);
     }

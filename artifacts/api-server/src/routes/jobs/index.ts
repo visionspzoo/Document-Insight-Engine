@@ -267,9 +267,9 @@ router.post("/jobs/:id/process", async (req, res): Promise<void> => {
       return extractedData;
     },
     (event) => {
-      send({ type: "progress", ...event });
+      send({ ...event });
     },
-    { concurrency: 2, retries: 3 },
+    { retries: 3 },
   ).catch(async (err) => {
     failedCount++;
     logger.error({ err }, "Error processing document batch");
@@ -366,8 +366,8 @@ router.post("/jobs/:id/analyze", async (req, res): Promise<void> => {
       processed++;
       return analysisResult;
     },
-    (event) => send({ type: "progress", ...event, processedCount: processed }),
-    { concurrency: 2, retries: 2 },
+    (event) => send({ ...event, processedCount: processed }),
+    { retries: 2 },
   ).catch((err) => {
     failed++;
     logger.error({ err }, "Error during analysis batch");

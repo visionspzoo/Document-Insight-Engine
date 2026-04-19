@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, rolesTable, userRolesTable, PERMISSION_KEYS } from "@workspace/db";
+import { createClient } from "@supabase/supabase-js";
 
 async function main() {
   let adminRole = (await db.select().from(rolesTable).where(eq(rolesTable.name, "Administrator")).limit(1))[0];
@@ -34,27 +35,33 @@ async function main() {
     console.log("Utworzono rolę Operator");
   }
 
-  const secretKey = process.env.CLERK_SECRET_KEY;
-  if (!secretKey) {
-    console.error("Brak CLERK_SECRET_KEY — pomijam przypisanie admina.");
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error("Brak VITE_SUPABASE_URL lub SUPABASE_SERVICE_ROLE_KEY — pomijam przypisanie admina.");
     return;
   }
-  const r = await fetch("https://api.clerk.com/v1/users?email_address=admin@docsage.pl", {
-    headers: { Authorization: `Bearer ${secretKey}` },
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
   });
-  const users = (await r.json()) as Array<{ id: string }>;
-  if (Array.isArray(users) && users[0]) {
-    const userId = users[0].id;
-    const existing = await db.select().from(userRolesTable).where(eq(userRolesTable.clerkUserId, userId)).limit(1);
+  const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 });
+  if (listError || !listData) {
+    console.error("Nie udało się pobrać użytkowników z Supabase.");
+    return;
+  }
+  const adminUser = listData.users.find((u: { email?: string }) => u.email === "admin@docsage.pl");
+  if (adminUser) {
+    const userId = adminUser.id;
+    const existing = await db.select().from(userRolesTable).where(eq(userRolesTable.userId, userId)).limit(1);
     if (existing.length === 0) {
-      await db.insert(userRolesTable).values({ clerkUserId: userId, roleId: adminRole.id });
+      await db.insert(userRolesTable).values({ userId, roleId: adminRole.id });
       console.log(`Przypisano rolę Administrator do ${userId}`);
     } else {
-      await db.update(userRolesTable).set({ roleId: adminRole.id }).where(eq(userRolesTable.clerkUserId, userId));
+      await db.update(userRolesTable).set({ roleId: adminRole.id }).where(eq(userRolesTable.userId, userId));
       console.log(`Zaktualizowano rolę dla ${userId} na Administrator`);
     }
   } else {
-    console.warn("Nie znaleziono użytkownika admin@docsage.pl w Clerk.");
+    console.warn("Nie znaleziono użytkownika admin@docsage.pl w Supabase.");
   }
 }
 

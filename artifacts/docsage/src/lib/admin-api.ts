@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "./supabase";
 
 export type PermissionKey =
   | "users.manage"
@@ -30,11 +31,19 @@ export interface AdminUser {
   role: { id: number; name: string } | null;
 }
 
+async function getAuthHeader(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+}
+
 export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+  const authHeaders = await getAuthHeader();
   const res = await fetch(path, {
     credentials: "include",
     ...init,
-    headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
+    headers: { "Content-Type": "application/json", ...authHeaders, ...(init.headers ?? {}) },
   });
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
